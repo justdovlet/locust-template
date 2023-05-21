@@ -56,18 +56,20 @@ class YourSequentialTaskSetExample(SequentialTaskSet, BehaviorBase):
     """
     Показываю пример ответа на запрос, который отправили выше, чтобы было понятно, как его парсили:
     
-    "topicsStat": [{
+    {    
+        "topicsStat": [{
         "topicId": 0001,
         "topicType": {
                          "id": 1,
                          "name": "Video"
-                     },
+                     }},
                      {
         "topicId": 0002,
         "topicType": {
                          "id": 2,
                          "name": "Test"
-                     },]
+                     }}]
+    }
     """
 
     @task
@@ -91,6 +93,14 @@ class YourSequentialTaskSetExample(SequentialTaskSet, BehaviorBase):
                         response.failure("JSON parsing error")
                 else:
                     response.failure(f"Unexpected status code: {response.status_code}. Response: {response.text}")
+
+    """
+    Ответ на запрос выше
+    {
+    "topic_id": "0001",
+    "status": "SCHEDULED"
+    }         
+    """
 
 
 class YourRandomTaskSetExample(BehaviorBase):
