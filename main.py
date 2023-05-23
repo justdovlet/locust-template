@@ -171,10 +171,6 @@ class MixedBehavior(HttpUser):
 
     # Метод, выполняющийся при старте теста
     def on_start(self):
-        ##################################
-        self.environment.token = "REMOVE THIS"
-        ##################################
-
         if self.username is None:
             self.username, self.password = credentials_queue.get()  # получаем учетные данные из очереди
         self.environment.host = self.host
