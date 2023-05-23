@@ -1,7 +1,7 @@
 import json
-import os
+import math
 from queue import Queue
-from locust import HttpUser, between
+from locust import HttpUser, between, LoadTestShape
 from locust import SequentialTaskSet, task
 from locust import TaskSet
 
@@ -88,7 +88,7 @@ class YourSequentialTaskSetExample(SequentialTaskSet, BehaviorBase):
             }
             with self.client.post(f"/api/v1/user/topic/plan", data=json.dumps(request_data), headers=headers,
                                   verify=False, catch_response=True,
-                                  name="UC01_01_05 /api/v1/user/topic/plan") as response:
+                                  name="UC01_01_02 /api/v1/user/topic/plan") as response:
                 if response.status_code == 200:
                     try:
                         data = response.json()
@@ -132,13 +132,42 @@ class YourRandomTaskSetExample(BehaviorBase):
                     response.failure(f"Unexpected status code: {response.status_code}. Response: {response.text}")
 
 
+class StepLoadShape(LoadTestShape):
+    """
+    Форма ступенчатой нагрузки
+
+    Аргументы:
+
+        step_time -- Время между ступенями
+        step_load -- Количество пользователей, увеличивающееся на каждой ступени
+        spawn_rate -- Сколько пользователей запускать/останавливать в секунду на каждой ступени
+        time_limit -- Длительность всего теста
+
+
+    """
+
+    step_time = 30
+    step_load = 10
+    spawn_rate = 10
+    time_limit = 600
+
+    def tick(self):
+        run_time = self.get_run_time()
+
+        if run_time > self.time_limit:
+            return None
+
+        current_step = math.floor(run_time / self.step_time) + 1
+        return current_step * self.step_load, self.spawn_rate
+
+
 # Смешанное поведение пользователя
 class MixedBehavior(HttpUser):
-    host = "https://yourhost.com"  # хост
+    host = "https://yourhhhost.com"  # хост
     wait_time = between(1, 5)  # время ожидания между задачами
 
     # Пропорции задач
-    tasks = {YourSequentialTaskSetExample: 45, YourRandomTaskSetExample: 100}
+    tasks = {YourSequentialTaskSetExample: 1, YourRandomTaskSetExample: 1}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -146,6 +175,10 @@ class MixedBehavior(HttpUser):
 
     # Метод, выполняющийся при старте теста
     def on_start(self):
+        ##################################
+        self.environment.token = "REMOVE THIS"
+        ##################################
+
         if self.username is None:
             self.username, self.password = credentials_queue.get()  # получаем учетные данные из очереди
         self.environment.host = self.host
