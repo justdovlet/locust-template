@@ -159,7 +159,7 @@ class StepLoadShape(LoadTestShape):
 
 # Смешанное поведение пользователя
 class MixedBehavior(HttpUser):
-    host = "https://yourhhhost.com"  # хост
+    host = "https://yourhost.com"  # хост
     wait_time = between(1, 5)  # время ожидания между задачами
 
     # Пропорции задач
