@@ -17,10 +17,6 @@ for cred in credentials:
     credentials_queue.put(cred)
 
 
-# Если нужно запустить несколько Locust тестов одновременно, то надо дать им разные порты:
-# locust -f locustfile.py --web-port=8089
-# locust -f locustfile_2.py --web-port=8090
-
 # Базовый класс задач для поведения, предоставляет методы для получения заголовков и хоста
 class BehaviorBase(TaskSet):
     def __init__(self, *args, **kwargs):
@@ -204,3 +200,7 @@ class MixedBehavior(HttpUser):
                     if self.username is not None:
                         credentials_queue.put((self.username, self.password))  # возвращаем учетные данные в очередь
                         self.username, self.password = None, None
+
+
+# Locust запускается через терминал:
+# locust -f main.py
