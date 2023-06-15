@@ -1,12 +1,13 @@
 import json
 import math
 from queue import Queue
+
 from locust import HttpUser, between, LoadTestShape
 from locust import SequentialTaskSet, task
 from locust import TaskSet
 
 # Загружаем логины и пароли из файла
-with open("Files/credentials.txt", "r") as file:
+with open("files/credentials.txt", "r") as file:
     credentials = [tuple(line.strip().split(",")) for line in file.readlines()]
 
 # Создаём очередь
@@ -17,34 +18,46 @@ for cred in credentials:
     credentials_queue.put(cred)
 
 
-# Базовый класс задач для поведения, предоставляет методы для получения заголовков и хоста
-class BehaviorBase(TaskSet):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    # Метод для получения заголовков запроса
-    def _get_headers(self):
-        return {"Authorization": f'Bearer {self.user.environment.token}'}
-
-    # Метод для получения хоста
-    def _get_host(self):
-        return self.user.environment.host
-
-
 # Пример последовательного набора задач
-class YourSequentialTaskSetExample(SequentialTaskSet, BehaviorBase):
+class YourSequentialTaskSetExample(SequentialTaskSet):
+    wait_time = between(1, 5)  # время ожидания между задачами
+
     topic_id = None  # ID темы, который будет задан в UC01_01_01_your_get_example
+
+    token = None
+    headers = None
+
+    password = None
+    username = None
+
+    def on_start(self):
+        if self.username is None:
+            self.username, self.password = credentials_queue.get()  # получаем учетные данные из очереди
+
+        headers = {"Content-Type": "application/json"}
+        request_data = {
+            "username": self.username,
+            "password": self.password
+        }
+        with self.client.post("/api/login", data=json.dumps(request_data), headers=headers, verify=False,
+                              catch_response=True, name="UC01 Login") as response:
+            if response.status_code == 200:
+                data = response.json()
+                self.token = data.get("accessToken")  # сохраняем токен доступа
+                self.headers = {"Authorization": f"Bearer {self.token}"}
+            else:
+                response.failure(
+                    f"Unexpected status code: {response.status_code}. Request payload: {request_data}. Response: {response.text}")
 
     # Задача на получение темы
     @task
     def UC01_01_01_your_get_example(self):
-        if self.user.environment.token:
+        if self.token:
             self.topic_id = None
-            headers = self._get_headers()
+            headers = self.headers.copy()
             with self.client.get(
-                    f"/api/v1/get/topics",
-                    headers=headers, verify=False, catch_response=True,
-                    name="UC01_01_01 /api/v1/get/topics") as response:
+                    f"/api/get/topics", headers=headers, verify=False, catch_response=True,
+                    name=f"{self.token}") as response:
                 if response.status_code == 200:
                     try:
                         data = response.json()
@@ -76,15 +89,15 @@ class YourSequentialTaskSetExample(SequentialTaskSet, BehaviorBase):
     # Задача на отправку пост-запроса
     @task
     def UC01_01_02_your_post_example(self):
-        if self.user.environment.token:
-            headers = self._get_headers()
+        if self.token:
+            headers = self.headers.copy()
             headers["Content-Type"] = "application/json"
             request_data = {
                 "topicId": self.topic_id,  # используем ID темы, полученный в UC01_01_01_your_get_example
             }
-            with self.client.post(f"/api/v1/user/topic/plan", data=json.dumps(request_data), headers=headers,
+            with self.client.post(f"/api/user/topic/plan", data=json.dumps(request_data), headers=headers,
                                   verify=False, catch_response=True,
-                                  name="UC01_01_02 /api/v1/user/topic/plan") as response:
+                                  name="UC01_01_02 /api/user/topic/plan") as response:
                 if response.status_code == 200:
                     try:
                         data = response.json()
@@ -104,15 +117,54 @@ class YourSequentialTaskSetExample(SequentialTaskSet, BehaviorBase):
     }         
     """
 
+    # Метод, выполняющийся при завершении теста
+    def on_stop(self):
+        if self.token:
+            headers = {"Authorization": f'Bearer {self.token}'}
+            with self.client.delete("/api/logout", headers=headers, verify=False,
+                                    catch_response=True, name="UC01 Logout") as response:
+                if response.status_code == 200:
+                    self.token = None  # удаляем токен доступа
+                    self.headers = None
+                    if self.username and self.password:
+                        credentials_queue.put((self.username, self.password))  # возвращаем учетные данные в очередь
+                        self.username, self.password = None, None
+
 
 # Пример случайного набора задач
-class YourRandomTaskSetExample(BehaviorBase):
+class YourRandomTaskSetExample(TaskSet):
+    wait_time = between(1, 5)  # время ожидания между задачами
+
+    token = None
+    headers = None
+
+    password = None
+    username = None
+
+    def on_start(self):
+        if self.username is None:
+            self.username, self.password = credentials_queue.get()  # получаем учетные данные из очереди
+
+        headers = {"Content-Type": "application/json"}
+        request_data = {
+            "username": self.username,
+            "password": self.password
+        }
+        with self.client.post("/api/login", data=json.dumps(request_data), headers=headers, verify=False,
+                              catch_response=True, name="UC01 Login") as response:
+            if response.status_code == 200:
+                data = response.json()
+                self.token = data.get("accessToken")  # сохраняем токен доступа
+                self.headers = {"Authorization": f"Bearer {self.token}"}
+            else:
+                response.failure(
+                    f"Unexpected status code: {response.status_code}. Request payload: {request_data}. Response: {response.text}")
 
     # Задачи с различными весами
     @task(10)
     def UC01_02_01_your_task(self):
-        if self.user.environment.token:
-            headers = self._get_headers()
+        if self.token:
+            headers = self.headers.copy()
             with self.client.get(f"/YourUrl", headers=headers, verify=False, catch_response=True,
                                  name="UC01_02_01 /YourUrl") as response:
                 if response.status_code != 200:
@@ -120,12 +172,24 @@ class YourRandomTaskSetExample(BehaviorBase):
 
     @task(20)
     def UC01_02_02_your_task(self):
-        if self.user.environment.token:
-            headers = self._get_headers()
+        if self.token:
+            headers = self.headers.copy()
             with self.client.get(f"/YourUrl", headers=headers, verify=False, catch_response=True,
                                  name="UC01_02_02 /YourUrl") as response:
                 if response.status_code != 200:
                     response.failure(f"Unexpected status code: {response.status_code}. Response: {response.text}")
+
+    def on_stop(self):
+        if self.token:
+            headers = {"Authorization": f'Bearer {self.token}'}
+            with self.client.delete("/api/logout", headers=headers, verify=False,
+                                    catch_response=True, name="UC01 Logout") as response:
+                if response.status_code == 200:
+                    self.token = None  # удаляем токен доступа
+                    self.headers = None
+                    if self.username and self.password:
+                        credentials_queue.put((self.username, self.password))  # возвращаем учетные данные в очередь
+                        self.username, self.password = None, None
 
 
 class StepLoadShape(LoadTestShape):
@@ -159,44 +223,10 @@ class StepLoadShape(LoadTestShape):
 
 # Смешанное поведение пользователя
 class MixedBehavior(HttpUser):
-    host = "https://yourhost.com"  # хост
-    wait_time = between(1, 5)  # время ожидания между задачами
+    host = "https://localhost"  # хост
 
     # Пропорции задач
     tasks = {YourSequentialTaskSetExample: 1, YourRandomTaskSetExample: 1}
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.username, self.password = None, None  # учетные данные пользователя
-
-    # Метод, выполняющийся при старте теста
-    def on_start(self):
-        if self.username is None:
-            self.username, self.password = credentials_queue.get()  # получаем учетные данные из очереди
-        self.environment.host = self.host
-        headers = {"Content-Type": "application/json"}
-        request_data = {
-            "password": self.password,
-            "username": self.username
-        }
-        with self.client.post("/api/login", data=json.dumps(request_data), headers=headers, verify=False,
-                              catch_response=True, name="UC01 Login") as response:
-            if response.status_code == 200:
-                data = response.json()
-                self.environment.token = data.get("accessToken")  # сохраняем токен доступа
-
-    # Метод, выполняющийся при завершении теста
-    def on_stop(self):
-        if self.environment.token:
-            headers = {"Authorization": f'Bearer {self.environment.token}'}
-            with self.client.delete("/api/logout", headers=headers, verify=False,
-                                    catch_response=True, name="UC01 Logout") as response:
-                if response.status_code == 200:
-                    self.environment.token = None  # удаляем токен доступа
-                    if self.username is not None:
-                        credentials_queue.put((self.username, self.password))  # возвращаем учетные данные в очередь
-                        self.username, self.password = None, None
-
-
 # Locust запускается через терминал:
-# locust -f main.py
+# locust -f max_perf_test.py
