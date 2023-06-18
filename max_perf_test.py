@@ -30,21 +30,27 @@ class YourSequentialTaskSetExample(SequentialTaskSet):
     password = None
     username = None
 
+    # Метод, который вызывается при старте теста для каждого пользователя
     def on_start(self):
         if self.username is None:
             self.username, self.password = credentials_queue.get()  # получаем учетные данные из очереди
 
+        # Определяем заголовки и данные для POST-запроса
         headers = {"Content-Type": "application/json"}
         request_data = {
             "username": self.username,
             "password": self.password
         }
+
+        # Отправляем POST-запрос на авторизацию и обрабатываем ответ
         with self.client.post("/api/login", data=json.dumps(request_data), headers=headers, verify=False,
                               catch_response=True, name="UC01 Login") as response:
+            # Если статус ответа равен 200, извлекаем токен доступа и сохраняем его
             if response.status_code == 200:
                 data = response.json()
                 self.token = data.get("accessToken")  # сохраняем токен доступа
                 self.headers = {"Authorization": f"Bearer {self.token}"}
+            # Если статус ответа не равен 200, сообщаем о неожиданном статусе
             else:
                 response.failure(
                     f"Unexpected status code: {response.status_code}. Request payload: {request_data}. Response: {response.text}")
@@ -117,7 +123,7 @@ class YourSequentialTaskSetExample(SequentialTaskSet):
     }         
     """
 
-    # Метод, выполняющийся при завершении теста
+    # Метод, который вызывается при завершении теста для каждого пользователя
     def on_stop(self):
         if self.token:
             headers = {"Authorization": f'Bearer {self.token}'}
