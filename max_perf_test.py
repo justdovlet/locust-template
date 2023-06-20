@@ -63,7 +63,7 @@ class YourSequentialTaskSetExample(SequentialTaskSet):
             headers = self.headers.copy()
             with self.client.get(
                     f"/api/get/topics", headers=headers, verify=False, catch_response=True,
-                    name=f"{self.token}") as response:
+                    name="UC01_01_01 /api/get/topics") as response:
                 if response.status_code == 200:
                     try:
                         data = response.json()
